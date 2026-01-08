@@ -12,7 +12,7 @@ async function main() {
 
   let diffContent = "";
 
-  rl.on("line", (line) => {
+  rl.on("line", (line) => { 
     diffContent += line + "\n";
   });
 
