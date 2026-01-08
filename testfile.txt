@@ -1,1 +1,20 @@
 I will be using this file to test the pre-commit hook.
+
+pre-commit file content so far : 
+#!/bin/sh
+
+DIFF=$(git diff --cached)
+
+if [ -z "$DIFF" ]; then
+    exit 0
+fi
+
+echo "$DIFF" | node gitgandalf.js
+
+if [ $? -ne 0 ]; then
+    echo "Git Gandalf review failed"
+    exit 1
+fi
+
+echo "Git Gandalf review in progress"
+exit 0
