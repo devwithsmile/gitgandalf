@@ -1,5 +1,46 @@
 const readline = require("readline");
-const MAX_DIFF_SIZE = 1024 * 1024; // 1MB
+
+const MAX_DIFF_SIZE = 1024 * 1024; // 1MB hard limit
+
+function extractDiffMetadata(diffContent) {
+  const lines = diffContent.split("\n");
+  const metadata = {
+    files_changed: 0,
+    files: [],
+    lines_added: 0,
+    lines_removed: 0,
+  };
+
+  const fileSet = new Set();
+
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) {
+      const match = line.match(/diff --git a\/(.*?) b\/(.*?)$/);
+      if (match) {
+        const filePath = match[2];
+        fileSet.add(filePath);
+      }
+    }
+
+    // Detect binary files and skip
+    if (line.startsWith("Binary files ")) {
+      continue;
+    }
+
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      metadata.lines_added++;
+    }
+
+    if (line.startsWith("-") && !line.startsWith("---")) {
+      metadata.lines_removed++;
+    }
+  }
+
+  metadata.files_changed = fileSet.size;
+  metadata.files = Array.from(fileSet);
+
+  return metadata;
+}
 
 async function main() {
   console.log("\nGit Gandalf Review");
@@ -25,17 +66,22 @@ async function main() {
       process.exit(1);
     }
 
-    diffContent += line + "\n";
+    diffContent += normalizedLine + "\n";
   });
 
   rl.on("close", async () => {
-    // Check if input is empty
     if (!diffContent.trim()) {
-      console.log("(no input provided)");
+      console.log("(no changes to review)");
       process.exit(1);
     }
 
     console.log("(review in progress...)");
+
+    // Extract metadata
+    const metadata = extractDiffMetadata(diffContent);
+    console.log(JSON.stringify(metadata));
+
+    process.exit(0);
   });
 
   rl.on("error", (err) => {
