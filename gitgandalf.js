@@ -7,11 +7,14 @@ function extractDiffMetadata(diffContent) {
   const metadata = {
     files_changed: 0,
     files: [],
+    binary_files: [],
     lines_added: 0,
     lines_removed: 0,
   };
 
   const fileSet = new Set();
+  const binarySet = new Set();
+
 
   for (const line of lines) {
     if (line.startsWith("diff --git ")) {
@@ -24,6 +27,13 @@ function extractDiffMetadata(diffContent) {
 
     // Detect binary files and skip
     if (line.startsWith("Binary files ")) {
+      const match = line.match(/Binary files (.*?) and (.*?) differ/);
+      if (match) {
+        const right = match[2]; // b/file or /dev/null
+        if (right.startsWith("b/")) {
+          binarySet.add(right.slice(2));
+        }
+      }
       continue;
     }
 
@@ -38,7 +48,7 @@ function extractDiffMetadata(diffContent) {
 
   metadata.files_changed = fileSet.size;
   metadata.files = Array.from(fileSet);
-
+  metadata.binary_files = Array.from(binarySet);
   return metadata;
 }
 
@@ -79,7 +89,7 @@ async function main() {
 
     // Extract metadata
     const metadata = extractDiffMetadata(diffContent);
-    console.log(JSON.stringify(metadata));
+    console.log("(metadata: " + JSON.stringify(metadata) + ")");
 
     process.exit(0);
   });
