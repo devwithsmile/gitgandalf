@@ -8,7 +8,7 @@ public class Main {
             (byte) 0x00,
             (byte) 0xFF,
             (byte) 0x10,
-            (byte) 0xA7
+            (byte) 0xAB
         };
         fos.write(bytes);
         fos.close();

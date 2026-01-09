@@ -15,7 +15,6 @@ function extractDiffMetadata(diffContent) {
   const fileSet = new Set();
   const binarySet = new Set();
 
-
   for (const line of lines) {
     if (line.startsWith("diff --git ")) {
       const match = line.match(/diff --git a\/(.*?) b\/(.*?)$/);
@@ -90,7 +89,13 @@ async function main() {
     // Extract metadata
     const metadata = extractDiffMetadata(diffContent);
     console.log("(metadata: " + JSON.stringify(metadata) + ")");
-
+    if (
+      metadata.binary_files.length > 0 &&
+      metadata.files.length === metadata.binary_files.length
+    ) {
+      console.log("(only binary files - skipping review)");
+      process.exit(0);
+    }
     process.exit(0);
   });
 
