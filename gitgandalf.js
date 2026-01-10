@@ -185,6 +185,31 @@ async function callLocalLLM(prompt) {
   });
 }
 
+function makeDecision(review) {
+  const decision = {
+    action: null,
+    risk: review.risk,
+    summary: review.summary,
+    issues: review.issues,
+  };
+
+  switch (review.risk) {
+    case "LOW":
+      decision.action = "ALLOW";
+      break;
+    case "MEDIUM":
+      decision.action = "WARN";
+      break;
+    case "HIGH":
+      decision.action = "BLOCK";
+      break;
+    default:
+      throw new Error(`Unknown risk level: ${review.risk}`);
+  }
+
+  return decision;
+}
+
 async function main() {
   console.log("\nGit Gandalf Review");
   console.log("(reading input...)");
@@ -235,8 +260,18 @@ async function main() {
       const response = await callLocalLLM(prompt);
       const jsonResponse = extractJsonObject(response);
       const review = validateReviewOutput(jsonResponse);
-      console.log("\nReview Result:");
-      console.log(JSON.stringify(review, null, 2));
+      const decision = makeDecision(review);
+      console.log("\n" + decision.action);
+      console.log("Summary: " + decision.summary);
+      if (decision.issues.length > 0) {
+        console.log("Issues:");
+        decision.issues.forEach((issue) => console.log("  - " + issue));
+      }
+
+      if (decision.action === "BLOCK") {
+        process.exit(1);
+      }
+
       process.exit(0);
     } catch (err) {
       console.warn("(LLM review failed: " + err.message + ")");
