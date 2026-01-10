@@ -5,32 +5,32 @@ const MAX_DIFF_SIZE = 1024 * 1024; // 1MB hard limit
 const LLM_TIMEOUT = 60000;
 const REVIEW_PROMPT_TEMPLATE = `You are a senior software engineer reviewing a git commit before it is merged.
 
-Your task is to analyze the provided diff and metadata, then produce a structured risk assessment.
+  Your task is to analyze the provided diff and metadata, then produce a structured risk assessment.
 
-METADATA:
-{metadata}
+  METADATA:
+  {metadata}
 
-DIFF:
-{diff}
+  DIFF:
+  {diff}
 
-You MUST respond with valid JSON only, using this exact schema:
-{
-  "risk": "LOW | MEDIUM | HIGH",
-  "issues": ["array of specific issues found, or empty array if none"],
-  "summary": "brief one-sentence summary of the changes"
-}
+  You MUST respond with valid JSON only, using this exact schema:
+  {
+    "risk": "LOW | MEDIUM | HIGH",
+    "issues": ["array of specific issues found, or empty array if none"],
+    "summary": "brief one-sentence summary of the changes"
+  }
 
-Rules:
-- Output ONLY valid JSON, nothing else
-- "risk" must be exactly one of: LOW, MEDIUM, HIGH
-- "issues" must be an array of strings (can be empty)
-- "summary" must be a single string
-- Do not include markdown, explanations, or any text outside the JSON object
+  Rules:
+  - Output ONLY valid JSON, nothing else
+  - "risk" must be exactly one of: LOW, MEDIUM, HIGH
+  - "issues" must be an array of strings (can be empty)
+  - "summary" must be a single string
+  - Do not include markdown, explanations, or any text outside the JSON object
 
-Risk levels:
-- LOW: Minor changes, no security or logic concerns
-- MEDIUM: Moderate changes that may need attention
-- HIGH: Security issues, breaking changes, or critical bugs`;
+  Risk levels:
+  - LOW: Minor changes, no security or logic concerns
+  - MEDIUM: Moderate changes that may need attention
+  - HIGH: Security issues, breaking changes, or critical bugs`;
 
 function buildReviewPrompt(metadata, diffContent) {
   return REVIEW_PROMPT_TEMPLATE.replace(
