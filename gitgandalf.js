@@ -3,6 +3,12 @@ const { spawn } = require("child_process");
 
 const MAX_DIFF_SIZE = 1024 * 1024; // 1MB hard limit
 const LLM_TIMEOUT = 60000;
+const FailureType = {
+  LLM_NOT_RUNNING: "LLM_NOT_RUNNING",
+  LLM_TIMEOUT: "LLM_TIMEOUT",
+  MALFORMED_OUTPUT: "MALFORMED_OUTPUT",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+};
 const REVIEW_PROMPT_TEMPLATE = `You are a senior software engineer reviewing a git commit before it is merged.
 
   Your task is to analyze the provided diff and metadata, then produce a structured risk assessment.
@@ -78,7 +84,9 @@ function validateReviewOutput(output) {
     }
     return parsed;
   } catch (err) {
-    throw new Error(`Invalid JSON output: ${err.message}`);
+    const e = new Error(`Invalid JSON output: ${err.message}`);
+    e.type = FailureType.MALFORMED_OUTPUT;
+    throw e;
   }
 }
 
@@ -142,7 +150,9 @@ async function callLocalLLM(prompt) {
     const timeout = setTimeout(() => {
       timedOut = true;
       llm.kill();
-      reject(new Error("LLM request timed out after 60 seconds"));
+      const err = new Error("LLM request timed out after 60 seconds");
+      err.type = FailureType.LLM_TIMEOUT;
+      reject(err);
     }, LLM_TIMEOUT);
 
     llm.stdout.on("data", (data) => {
@@ -156,9 +166,9 @@ async function callLocalLLM(prompt) {
     llm.on("error", (err) => {
       clearTimeout(timeout);
       if (err.code === "ENOENT") {
-        reject(
-          new Error("LM Studio CLI not found - is it installed and in PATH?")
-        );
+        const e = new Error("LM Studio CLI not found");
+        e.type = FailureType.LLM_NOT_RUNNING;
+        reject(e);
       } else {
         reject(new Error(`Failed to spawn LLM: ${err.message}`));
       }
@@ -212,7 +222,7 @@ function makeDecision(review) {
 
 function renderReview(decision) {
   console.log("=======================================");
-  
+
   console.log("\n🧙 Git Gandalf Review\n");
   console.log("Risk: " + decision.risk);
   console.log("Summary: " + decision.summary);
@@ -232,6 +242,37 @@ function renderReview(decision) {
     console.log("\n✅ No significant issues detected");
   }
   console.log("=======================================");
+}
+function handleFailure(err) {
+  console.log("=======================================");
+  console.log("\n🧙 Git Gandalf Review\n");
+
+  switch (err.type) {
+    case FailureType.LLM_NOT_RUNNING:
+    case FailureType.LLM_TIMEOUT:
+      console.log("Risk: MEDIUM");
+      console.log("Summary: Automated review unavailable");
+      console.log("\nDecision: WARN");
+      console.log("\n⚠️  Reason: " + err.message);
+      console.log("=======================================");
+      process.exit(0);
+
+    case FailureType.MALFORMED_OUTPUT:
+      console.log("Risk: HIGH");
+      console.log("Summary: LLM returned invalid output");
+      console.log("\nDecision: BLOCK");
+      console.log("\n❌ Reason: " + err.message);
+      console.log("=======================================");
+      process.exit(1);
+
+    default:
+      console.log("Risk: HIGH");
+      console.log("Summary: Internal error during review");
+      console.log("\nDecision: BLOCK");
+      console.log("\n❌ Reason: " + err.message);
+      console.log("=======================================");
+      process.exit(1);
+  }
 }
 
 async function main() {
@@ -264,7 +305,6 @@ async function main() {
       process.exit(1);
     }
 
-    // Extract metadata
     const metadata = extractDiffMetadata(diffContent);
     console.log("(metadata: " + JSON.stringify(metadata) + ")");
     if (
@@ -284,11 +324,9 @@ async function main() {
       if (decision.action === "BLOCK") {
         process.exit(1);
       }
-
       process.exit(0);
     } catch (err) {
-      console.warn("(LLM review failed: " + err.message + ")");
-      process.exit(1);
+      handleFailure(err);
     }
   });
 
