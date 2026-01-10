@@ -210,10 +210,31 @@ function makeDecision(review) {
   return decision;
 }
 
-async function main() {
-  console.log("\nGit Gandalf Review");
-  console.log("(reading input...)");
+function renderReview(decision) {
+  console.log("=======================================");
+  
+  console.log("\n🧙 Git Gandalf Review\n");
+  console.log("Risk: " + decision.risk);
+  console.log("Summary: " + decision.summary);
 
+  if (decision.issues.length > 0) {
+    console.log("\nIssues:");
+    decision.issues.forEach((issue) => console.log("  - " + issue));
+  }
+
+  console.log("\nDecision: " + decision.action);
+
+  if (decision.action === "BLOCK") {
+    console.log("\n❌ Commit blocked due to high risk issues");
+  } else if (decision.action === "WARN") {
+    console.log("\n⚠️  Review the issues above before proceeding");
+  } else {
+    console.log("\n✅ No significant issues detected");
+  }
+  console.log("=======================================");
+}
+
+async function main() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -243,8 +264,6 @@ async function main() {
       process.exit(1);
     }
 
-    console.log("(review in progress...)");
-
     // Extract metadata
     const metadata = extractDiffMetadata(diffContent);
     console.log("(metadata: " + JSON.stringify(metadata) + ")");
@@ -261,13 +280,7 @@ async function main() {
       const jsonResponse = extractJsonObject(response);
       const review = validateReviewOutput(jsonResponse);
       const decision = makeDecision(review);
-      console.log("\n" + decision.action);
-      console.log("Summary: " + decision.summary);
-      if (decision.issues.length > 0) {
-        console.log("Issues:");
-        decision.issues.forEach((issue) => console.log("  - " + issue));
-      }
-
+      renderReview(decision);
       if (decision.action === "BLOCK") {
         process.exit(1);
       }
