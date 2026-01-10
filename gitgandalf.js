@@ -1,7 +1,8 @@
 const readline = require("readline");
+const { spawn } = require("child_process");
 
 const MAX_DIFF_SIZE = 1024 * 1024; // 1MB hard limit
-
+const LLM_TIMEOUT = 60000;
 function extractDiffMetadata(diffContent) {
   const lines = diffContent.split("\n");
   const metadata = {
@@ -51,6 +52,60 @@ function extractDiffMetadata(diffContent) {
   return metadata;
 }
 
+async function callLocalLLM(prompt) {
+  return new Promise((resolve, reject) => {
+    const llm = spawn("lms", ["chat", "qwen/qwen3-4b-2507"]);
+    
+    let output = "";
+    let errorOutput = "";
+    let timedOut = false;
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      llm.kill();
+      reject(new Error("LLM request timed out after 60 seconds"));
+    }, LLM_TIMEOUT);
+
+    llm.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    llm.stderr.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+
+    llm.on("error", (err) => {
+      clearTimeout(timeout);
+      if (err.code === "ENOENT") {
+        reject(
+          new Error("LM Studio CLI not found - is it installed and in PATH?")
+        );
+      } else {
+        reject(new Error(`Failed to spawn LLM: ${err.message}`));
+      }
+    });
+
+    llm.on("close", (code) => {
+      clearTimeout(timeout);
+
+      if (timedOut) {
+        return;
+      }
+
+      if (code !== 0) {
+        reject(
+          new Error(`LLM process exited with code ${code}: ${errorOutput}`)
+        );
+      } else {        
+        resolve(output.trim());
+      }
+    });
+
+    llm.stdin.write(prompt);
+    llm.stdin.end();
+  });
+}
+
 async function main() {
   console.log("\nGit Gandalf Review");
   console.log("(reading input...)");
@@ -96,7 +151,14 @@ async function main() {
       console.log("(only binary files - skipping review)");
       process.exit(0);
     }
-    process.exit(0);
+    try {
+      const response = await callLocalLLM(diffContent);
+      console.log("\n" + response);
+      process.exit(0);
+    } catch (err) {
+      console.warn("(LLM review failed: " + err.message + ")");
+      process.exit(1);
+    }
   });
 
   rl.on("error", (err) => {
